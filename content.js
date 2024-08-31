@@ -20,13 +20,42 @@ function get_articles(){
     parentLink = findNearestLink(element)
     content = extractReadableContent(getContent(parentLink))
     title = element.textContent.trim()
+    new_title = callOpenAISync(promptAsistenteRedaccion + ' Titulo:' + title + " Contenido: " + content);
+    percents_text = callOpenAISync(promptEditorPorcentaje + ' Titulo:' + title + " Contenido: " + content);
+    percents_int = percents_text.match(/\d+(?=%)/g);
+
+    let overlayNumber = document.createElement('div');
+    overlayNumber.textContent = percents_int[0] + "%";
+    overlayNumber.style.position = 'absolute';
+    overlayNumber.style.top = '0';
+    overlayNumber.style.left = '0';
+    overlayNumber.style.width = '100%';
+    overlayNumber.style.height = '100%';
+    overlayNumber.style.display = 'flex';
+    overlayNumber.style.justifyContent = 'center';
+    overlayNumber.style.alignItems = 'center';
+    overlayNumber.style.fontSize = '120px';
+    if (percents_int[0] >= 70) {
+      overlayNumber.style.color = 'rgba(255, 0, 0, 0.3)'; // Red with 30% opacity
+    } else if (percents_int[0] >= 30 && percents_int[0] < 70) {
+        overlayNumber.style.color = 'rgba(255, 255, 0, 0.3)'; // Yellow with 30% opacity
+    } else {
+        overlayNumber.style.color = 'rgba(0, 255, 0, 0.3)'; // Green with 30% opacity
+    }  
+    overlayNumber.style.zIndex = '2';
+    overlayNumber.style.pointerEvents = 'none'; // Allows clicking through the overlay
+    element.appendChild(overlayNumber);
+
     articles.push({
+      'element': element,
       'title': title,
       'link': parentLink,
       'content': content,
       'content_length': content.length,
-      'new_title': callOpenAISync(promptAsistenteRedaccion + ' Titulo:' + title + " Contenido: " + content),
-      'percents': callOpenAISync(promptEditorPorcentaje + ' Titulo:' + title + " Contenido: " + content),
+      'new_title': new_title,
+      'percents': percents_text,
+      'clickbait': percents_int[0],
+      'relacion': percents_int[1],
       }
     )
   });
@@ -129,7 +158,7 @@ function extractReadableContent(htmlString) {
 
 
 let promptEditorPorcentaje = `Deberias comportarte como un editor de un medio periodístico que es totalmente Anti Clickbait.
-Deberas proporcionar el porcentaje de Clickbait de la nota y la realcion entre el titulo y el cuerpo de la siguiente forma:
+Deberas proporcionar el porcentaje de Clickbait de la nota y la relacion entre el titulo y el cuerpo de la siguiente forma:
 1. Porcentaje de Clickbait:
 2. El titulo y el contenido tienen una relacion del:
 En caso que el título y el contenido tengan una diferencia de mas del 50%, sugerir un título correcto (Respetando las reglas de SEO) (Solo poner el titulo sugerido, no explicación)`;
@@ -137,7 +166,7 @@ En caso que el título y el contenido tengan una diferencia de mas del 50%, suge
 let promptAsistenteRedaccion = `Tenés el título y el contenido de una noticia. Escaneá ambos para determinar si están relacionados o si el título es clickbait. Si el título es clickbait, devolvé una versión modificada que refleje con mayor precisión el contenido de la noticia. Si no es clickbait, devolvé el título tal como está.`;
 
 
-apiKey = 'replace_your_key'
+apiKey = 'replace_key'
 
 function callOpenAISync(prompt) {
   let result = null;
@@ -179,7 +208,9 @@ function callOpenAISync(prompt) {
 
   return result;
 }    
- 
+
+
+
 // Run the function when the page loads
 window.addEventListener('load', main);
 
