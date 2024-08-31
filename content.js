@@ -6,6 +6,7 @@ function main(){
   get_articles();
 }
 
+page_average = ''
 
 function countH2Elements() {
   const h2Count = document.getElementsByTagName('h2').length;
@@ -20,7 +21,7 @@ function get_articles(){
     parentLink = findNearestLink(element)
     content = extractReadableContent(getContent(parentLink))
     title = element.textContent.trim()
-    new_title = callOpenAISync(promptAsistenteRedaccion + ' Titulo:' + title + " Contenido: " + content);
+    new_title = '' //callOpenAISync(promptAsistenteRedaccion + ' Titulo:' + title + " Contenido: " + content);
     percents_text = callOpenAISync(promptEditorPorcentaje + ' Titulo:' + title + " Contenido: " + content);
     percents_int = percents_text.match(/\d+(?=%)/g);
 
@@ -36,11 +37,11 @@ function get_articles(){
     overlayNumber.style.alignItems = 'center';
     overlayNumber.style.fontSize = '120px';
     if (percents_int[0] >= 70) {
-      overlayNumber.style.color = 'rgba(255, 0, 0, 0.3)'; // Red with 30% opacity
+      overlayNumber.style.color = 'rgba(255, 0, 0, 0.5)'; // Red with 30% opacity
     } else if (percents_int[0] >= 30 && percents_int[0] < 70) {
-        overlayNumber.style.color = 'rgba(255, 255, 0, 0.3)'; // Yellow with 30% opacity
+        overlayNumber.style.color = 'rgba(255, 255, 0, 0.5)'; // Yellow with 30% opacity
     } else {
-        overlayNumber.style.color = 'rgba(0, 255, 0, 0.3)'; // Green with 30% opacity
+        overlayNumber.style.color = 'rgba(0, 255, 0, 0.5)'; // Green with 30% opacity
     }  
     overlayNumber.style.zIndex = '2';
     overlayNumber.style.pointerEvents = 'none'; // Allows clicking through the overlay
@@ -61,8 +62,13 @@ function get_articles(){
   });
 
   console.log(articles);
-
+  page_average = calculateAverage(articles,'clickbait');
+  console.log('El promedio de clickbait es:' + page_average);  
+  let trunc = Math.trunc(page_average * 100) / 100;
+  sendMessageToPopup(trunc + "%");
+  console.log('Message sent ' + trunc + "%")
 }
+
 
 
 
@@ -158,10 +164,28 @@ function extractReadableContent(htmlString) {
 
 
 let promptEditorPorcentaje = `Deberias comportarte como un editor de un medio periodístico que es totalmente Anti Clickbait.
-Deberas proporcionar el porcentaje de Clickbait de la nota y la relacion entre el titulo y el cuerpo de la siguiente forma:
+
+Deberas proporcionar el porcentaje de Clickbait de la nota y, por otro lado la relación entre el titulo y el cuerpo de la siguiente forma:
+
 1. Porcentaje de Clickbait:
-2. El titulo y el contenido tienen una relacion del:
-En caso que el título y el contenido tengan una diferencia de mas del 50%, sugerir un título correcto (Respetando las reglas de SEO) (Solo poner el titulo sugerido, no explicación)`;
+
+2. El titulo y el cuerpo tienen una relacion del:
+
+En caso que el título y el contenido tengan una diferencia entre 70% y 100%, sugerir un título nuevo respetándo las reglas de SEO. 
+
+Para analizar tanto el porcentaje de clickbait como la relacion entre titulo y cuerpo debes tener en cuenta esto:
+
+Porcentaje de Clickbait:
+
+ 0. Sensacionalismo del Título: El uso de palabras como "grave problema" para atraer clics.
+ 0. Desconexión con el Contenido: Si el problema mencionado no es tan serio como el título sugiere.
+ 0. Expectativa vs. Realidad: La expectativa generada por el título frente a la realidad descrita en el artículo.
+
+Relación Título-Cuerpo:
+
+ 1. Relevancia del Título: El título refleja el contenido del artículo, aunque con exageración.
+ 2. Profundidad del Contenido: El artículo aborda el tema mencionado en el título, pero con menor gravedad.
+ 3. Coherencia: El problema se menciona, pero la percepción del lector sobre su gravedad puede diferir de lo sugerido en el título.`;
 
 let promptAsistenteRedaccion = `Tenés el título y el contenido de una noticia. Escaneá ambos para determinar si están relacionados o si el título es clickbait. Si el título es clickbait, devolvé una versión modificada que refleje con mayor precisión el contenido de la noticia. Si no es clickbait, devolvé el título tal como está.`;
 
@@ -209,9 +233,28 @@ function callOpenAISync(prompt) {
   return result;
 }    
 
+function calculateAverage(objects, key) {
+  if (objects.length === 0) return 0;
+  
+  const sum = objects.reduce((acc, obj) => {
+    const value = obj[key];
+    if (typeof value === 'number') {
+      return acc + value;
+    } else if (typeof value === 'string') {
+      const num = parseFloat(value);
+      return isNaN(num) ? acc : acc + num;
+    }
+    return acc;
+  }, 0);
+  
+  return sum / objects.length;
+}
+
+// Function to send a message to the popup
+function sendMessageToPopup(message) {
+  chrome.runtime.sendMessage({ message: message });
+}
 
 
 // Run the function when the page loads
 window.addEventListener('load', main);
-
-
