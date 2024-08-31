@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "H2 Element Counter",
+  "name": "Anti-clickbait plugin",
   "version": "1.0",
-  "description": "Counts the number of h2 elements on a webpage and prints to console",
+  "description": "Evaluador del nivel de clickbait de medios digitales",
   "permissions": [
     "activeTab"
   ],
