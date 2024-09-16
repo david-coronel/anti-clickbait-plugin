@@ -1,32 +1,75 @@
-articles = []
-contents = []
+// Global Variables
+let articles = [];
+let contents = [];
+let page_average = '';
 
-function main(){
+const promptEditorPorcentaje = `Se te va a compartir el título, contenido y nivel engañoso de una nota. Ese nivel engañoso será bajo (menos del 50%) o alto (más del 50%).
+
+Vos deberás proporcionar el porcentaje exacto de Clickbait/nivel de engaño de la nota respetando ese nivel bajo/alto y teniendo en cuenta:
+
+ 0. Sensacionalismo del Título: El uso de palabras como "grave problema" para atraer clics.
+ 0. Desconexión con el Contenido: Si el problema mencionado no es tan serio como el título sugiere.
+ 0. Expectativa vs. Realidad: La expectativa generada por el título frente a la realidad descrita en el artículo.
+ 1. Relevancia del Título: El título refleja el contenido del artículo, aunque con exageración.
+ 2. Profundidad del Contenido: El artículo aborda el tema mencionado en el título, pero con menor gravedad.
+ 3. Coherencia: El problema se menciona, pero la percepción del lector sobre su gravedad puede diferir de lo sugerido en el título.;
+`;
+const promptAsistenteRedaccion = `Sos un chatbot que recibe el título y el contenido de una noticia. Tu tarea es identificar si el título es clickbait, es decir, si es engañoso con respecto al contenido, o impreciso, o muy subjetivo. Vas a responder únicamente con otro título para la noticia. Si el título original es muy clickbait, vas a responder con un título nuevo, modificado, con el mismo estilo que el original pero más acurado al contenido de la noticia. Si el título original no es demasiado engañoso, vas a responder con ese mismo título sin modificarlo.`;
+
+async function main() {
+  
   countH2Elements();
-  get_articles();
+  await processArticles(); // Await to ensure async behavior
 }
 
-page_average = ''
-
+// Count number of H2 elements on the page
 function countH2Elements() {
   const h2Count = document.getElementsByTagName('h2').length;
   console.log(`Number of h2 elements on this page: ${h2Count}`);
 }
 
-function get_articles(){
-  const h2Elements = document.getElementsByTagName('h2')
-  firsts = Array.from(h2Elements).slice(0,3)
-  Array.from(firsts).forEach((element, index) => {
-    console.log(`${index + 1}. ${element.textContent.trim()}`);
-    parentLink = findNearestLink(element)
-    content = extractReadableContent(getContent(parentLink))
-    title = element.textContent.trim()
-    new_title = '' //callOpenAISync(promptAsistenteRedaccion + ' Titulo:' + title + " Contenido: " + content);
-    percents_text = callOpenAISync(promptEditorPorcentaje + ' Titulo:' + title + " Contenido: " + content);
-    percents_int = percents_text.match(/\d+(?=%)/g);
+// Get and process articles
+async function processArticles() {
+  const h2Elements = document.getElementsByTagName('h2');
+  const firsts = Array.from(h2Elements).slice(0, 3);
+  
+  for (const element of firsts) {
+    const title = element.textContent.trim();
+    const parentLink = findNearestLink(element);
+    const content = extractReadableContent(getContent(parentLink));
+    
+    // Call AI for new title
+    const new_title = await getNewTitle(title, content); // Awaiting async call
+
+    
+
+    // Determine engañosoMensaje based on whether new_title is different from title
+    let engañosoMensaje = '';
+    if (new_title !== title) {
+      engañosoMensaje = "Tiene un porcentaje engañoso alto";
+    } else {
+      engañosoMensaje = "Tiene un porcentaje engañoso bajo";
+    }
+
+    // Construct userPrompt for callOpenAISync
+    const userPrompt = `${engañosoMensaje}\nTitulo: ${title}\nContenido: ${content}`;
+    let percents_text = callOpenAISync('gpt-3.5-turbo', promptEditorPorcentaje, userPrompt); // Await async function
+    percents_text = percents_text.match(/\d+(?=%)/g);
+
+    const newTitleElement = document.createElement('h2');
+    newTitleElement.textContent = new_title;
+    if (percents_text >= 70) {
+      newTitleElement.style.color  = 'rgba(255, 0, 0, 0.5)'; // Red with 30% opacity
+    } else if (percents_text >= 30 && percents_text < 70) {
+        newTitleElement.style.color  = 'orange'; // Yellow with 30% opacity
+    } else {
+        newTitleElement.style.color  = 'rgba(0, 255, 0, 0.5)'; // Green with 30% opacity
+    }  
+    element.parentNode.insertBefore(newTitleElement, element);
+
 
     let overlayNumber = document.createElement('div');
-    overlayNumber.textContent = percents_int[0] + "%";
+    overlayNumber.textContent = percents_text + "%";
     overlayNumber.style.position = 'absolute';
     overlayNumber.style.top = '0';
     overlayNumber.style.left = '0';
@@ -36,10 +79,10 @@ function get_articles(){
     overlayNumber.style.justifyContent = 'center';
     overlayNumber.style.alignItems = 'center';
     overlayNumber.style.fontSize = '120px';
-    if (percents_int[0] >= 70) {
+    if (percents_text >= 70) {
       overlayNumber.style.color = 'rgba(255, 0, 0, 0.5)'; // Red with 30% opacity
-    } else if (percents_int[0] >= 30 && percents_int[0] < 70) {
-        overlayNumber.style.color = 'rgba(255, 255, 0, 0.5)'; // Yellow with 30% opacity
+    } else if (percents_text >= 30 && percents_text < 70) {
+        overlayNumber.style.color = 'orange'; // Yellow with 30% opacity
     } else {
         overlayNumber.style.color = 'rgba(0, 255, 0, 0.5)'; // Green with 30% opacity
     }  
@@ -48,154 +91,44 @@ function get_articles(){
     element.appendChild(overlayNumber);
 
     articles.push({
-      'element': element,
-      'title': title,
-      'link': parentLink,
-      'content': content,
-      'content_length': content.length,
-      'new_title': new_title,
-      'percents': percents_text,
-      'clickbait': percents_int[0],
-      'relacion': percents_int[1],
-      }
-    )
-  });
+      element,
+      title: new_title || title,
+      link: parentLink,
+      content,
+      content_length: content.length,
+      percents: percents_text
+    });
+  }
 
-  console.log(articles);
-  page_average = calculateAverage(articles,'clickbait');
-  console.log('El promedio de clickbait es:' + page_average);  
-  let trunc = Math.trunc(page_average * 100) / 100;
-  sendMessageToPopup(trunc + "%");
-  console.log('Message sent ' + trunc + "%")
+  page_average = calculateAverage(articles, 'percents');
+  sendMessageToPopup(`${Math.trunc(page_average * 100) / 100}%`);
 }
 
+// Get new title using OpenAI API
+async function getNewTitle(title, content) {
+  const userPrompt = `${title}\nContenido: ${content}`;
+  const newTitle =callOpenAISync('ft:gpt-3.5-turbo-0613:personal:chat-clickbait-news:A2lYZmqj', promptAsistenteRedaccion, userPrompt);
+  return newTitle;
+}
 
-
-
+// Find nearest link to the H2 element
 function findNearestLink(element) {
-  // First, search for child links
   const childLink = element.querySelector('a[href]');
-  if (childLink) {
-    return childLink.href;
-  }
+  if (childLink) return childLink.href;
 
-  // If no child links, search for parent links
   let currentElement = element;
-  while (currentElement !== null && currentElement.tagName !== 'BODY') {
-    if (currentElement.tagName === 'A' && currentElement.href) {
-      return currentElement.href;
-    }
+  while (currentElement && currentElement.tagName !== 'BODY') {
+    if (currentElement.tagName === 'A' && currentElement.href) return currentElement.href;
     currentElement = currentElement.parentElement;
   }
-
   return null;
 }
 
-function getContent(url){
-  output = '';
-  try {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false);  // false makes the request synchronous
-    xhr.send(null);
-  
-    if (xhr.status === 200) {
-      output = xhr.responseText;
-    } else {
-      output = 'Error: ' + xhr.status + ' ' + xhr.statusText;
-    }
-  } catch (error) {
-    output = 'Error: ' + error.message;
-  }
-  return output;
-}
-
-
-
-function extractReadableContent(htmlString) {
-  // Create a new DOMParser
-  const parser = new DOMParser();
-  
-  // Parse the HTML string
-  const doc = parser.parseFromString(htmlString, 'text/html');
-  
-  // Remove scripts, styles, and other non-content elements
-  const elementsToRemove = doc.querySelectorAll('script, style, link, meta, noscript, iframe');
-  elementsToRemove.forEach(el => el.remove());
-  
-  // Function to extract text from an element
-  function extractText(element) {
-    if (element.nodeType === Node.TEXT_NODE) {
-      return element.textContent.trim();
-    }
-    
-    if (element.nodeType !== Node.ELEMENT_NODE) {
-      return '';
-    }
-    
-    const tag = element.tagName.toLowerCase();
-    
-    // Ignore certain elements
-    if (['script', 'style', 'link', 'meta', 'noscript', 'iframe'].includes(tag)) {
-      return '';
-    }
-    
-    let text = '';
-    for (let child of element.childNodes) {
-      text += extractText(child) + ' ';
-    }
-    
-    // Add line breaks for block-level elements
-    if (['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(tag)) {
-      text += '\n';
-    }
-    
-    return text.trim();
-  }
-  
-  // Extract text from the body
-  const readableContent = extractText(doc.body);
-  
-  // Clean up the extracted text
-  return readableContent
-    .replace(/\s+/g, ' ')  // Replace multiple spaces with a single space
-    .replace(/\n+/g, '\n')  // Replace multiple newlines with a single newline
-    .trim();  // Remove leading and trailing whitespace
-}
-
-
-let promptEditorPorcentaje = `Deberias comportarte como un editor de un medio periodístico que es totalmente Anti Clickbait.
-
-Deberas proporcionar el porcentaje de Clickbait de la nota y, por otro lado la relación entre el titulo y el cuerpo de la siguiente forma:
-
-1. Porcentaje de Clickbait:
-
-2. El titulo y el cuerpo tienen una relacion del:
-
-En caso que el título y el contenido tengan una diferencia entre 70% y 100%, sugerir un título nuevo respetándo las reglas de SEO. 
-
-Para analizar tanto el porcentaje de clickbait como la relacion entre titulo y cuerpo debes tener en cuenta esto:
-
-Porcentaje de Clickbait:
-
- 0. Sensacionalismo del Título: El uso de palabras como "grave problema" para atraer clics.
- 0. Desconexión con el Contenido: Si el problema mencionado no es tan serio como el título sugiere.
- 0. Expectativa vs. Realidad: La expectativa generada por el título frente a la realidad descrita en el artículo.
-
-Relación Título-Cuerpo:
-
- 1. Relevancia del Título: El título refleja el contenido del artículo, aunque con exageración.
- 2. Profundidad del Contenido: El artículo aborda el tema mencionado en el título, pero con menor gravedad.
- 3. Coherencia: El problema se menciona, pero la percepción del lector sobre su gravedad puede diferir de lo sugerido en el título.`;
-
-let promptAsistenteRedaccion = `Tenés el título y el contenido de una noticia. Escaneá ambos para determinar si están relacionados o si el título es clickbait. Si el título es clickbait, devolvé una versión modificada que refleje con mayor precisión el contenido de la noticia. Si no es clickbait, devolvé el título tal como está.`;
-
-
-apiKey = 'replace_key'
-
-function callOpenAISync(prompt) {
+// Make synchronous API call to OpenAI
+function callOpenAISync(model, systemPrompt, userPrompt) {
   let result = null;
   let error = null;
-
+  let apiKey = 'YOUR_API_KEY'; // Reemplaza con tu clave de API real
   const xhr = new XMLHttpRequest();
   xhr.open('POST', 'https://api.openai.com/v1/chat/completions', false);  // false makes the request synchronous
   xhr.setRequestHeader('Content-Type', 'application/json');
@@ -215,8 +148,8 @@ function callOpenAISync(prompt) {
   };
 
   const data = JSON.stringify({
-    model: "gpt-4o-mini",
-    messages: [{role: "user", content: prompt}],
+    model: model,
+    messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
     temperature: 0.7
   });
 
@@ -227,34 +160,60 @@ function callOpenAISync(prompt) {
   }
 
   if (error) {
-    throw new Error(error);
+    console.log(error);
   }
 
   return result;
-}    
+}
 
+// Fetch article content from URL
+function getContent(url) {
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.send(null);
+
+    return xhr.status === 200 ? xhr.responseText : `Error: ${xhr.status} ${xhr.statusText}`;
+  } catch (error) {
+    return `Error: ${error.message}`;
+  }
+}
+
+// Extract readable content from HTML
+function extractReadableContent(htmlString) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+  doc.querySelectorAll('script, style, link, meta, noscript, iframe').forEach(el => el.remove());
+
+  return extractText(doc.body).replace(/\s+/g, ' ').replace(/\n+/g, '\n').trim();
+}
+
+function extractText(element) {
+  if (element.nodeType === Node.TEXT_NODE) return element.textContent.trim();
+  if (element.nodeType !== Node.ELEMENT_NODE) return '';
+
+  const tag = element.tagName.toLowerCase();
+  if (['script', 'style', 'link', 'meta', 'noscript', 'iframe'].includes(tag)) return '';
+
+  return Array.from(element.childNodes).map(extractText).join(' ').trim();
+}
+
+// Calculate the average of a key in an array of objects
 function calculateAverage(objects, key) {
-  if (objects.length === 0) return 0;
-  
+  if (!objects.length) return 0;
+
   const sum = objects.reduce((acc, obj) => {
-    const value = obj[key];
-    if (typeof value === 'number') {
-      return acc + value;
-    } else if (typeof value === 'string') {
-      const num = parseFloat(value);
-      return isNaN(num) ? acc : acc + num;
-    }
-    return acc;
+    const value = parseFloat(obj[key]) || 0;
+    return acc + value;
   }, 0);
-  
+
   return sum / objects.length;
 }
 
-// Function to send a message to the popup
+// Send a message to the popup
 function sendMessageToPopup(message) {
-  chrome.runtime.sendMessage({ message: message });
+  chrome.runtime.sendMessage({ message });
 }
-
 
 // Run the function when the page loads
 window.addEventListener('load', main);

@@ -1,18 +1,19 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Anti-clickbait plugin",
   "version": "1.0",
   "description": "Evaluador del nivel de clickbait de medios digitales",
   "permissions": [
     "activeTab"
   ],
-  "browser_action": {
+  "action": {
     "default_popup": "index.html"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "type": "module"
     }
   ]
 }
