@@ -28,7 +28,7 @@ El repositorio incluye los siguientes archivos clave:
 
 - `manifest.json`: Define los permisos y configuraciones del plugin, incluyendo el uso de scripts de contenido para interactuar con las páginas web.
 - `content.js`: Contiene el código encargado de analizar los títulos de los artículos y determinar el porcentaje de clickbait.
-- `popup.html`: Proporciona la interfaz de usuario que muestra el porcentaje de clickbait detectado.
+- `index.html`: Proporciona la interfaz de usuario que muestra el porcentaje de clickbait detectado.
 - `popup.js`: Maneja la lógica que conecta el contenido analizado con la visualización en el popup.
 
 ## Cómo Funciona
